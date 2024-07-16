@@ -11,7 +11,7 @@ if __name__ == '__main__':
 		
 	bot = mBot()
 	#bot.startWithSerial("/dev/ttyUSB0")
-	bot.startWithHID()
+	bot.startWithBle()
 	while(1):
 		bot.requestUltrasonicSensor(1,3,onDistance)
 		sleep(0.2)
