@@ -16,18 +16,17 @@ This has been tested with:
 * the Raspberry PI.
 * the Intel Edison.
 
-It works on Linux, Windows 7/10 and OS X.
+Tested on Raspberry Pi with ubuntu 24 and Intel-Based macs.
 
 Software Dependencies
 ---------------------
 
 * Makeblock Library (https://github.com/Makeblock-official/Makeblock-Libraries)
 * Python (http://python.org/download/)
-* Cython (http://cython.org/#download)
-* cython-hidapi (https://github.com/trezor/cython-hidapi)
 * pyserial
+* bleak
 
-Prepare for Makeblock's Bots
+Prepare for Makeblock's mBot Ranger(Me Auriga)
 ----------------------------
 1. Download the source from the git https://github.com/Makeblock-official/Makeblock-Libraries
 
@@ -37,9 +36,11 @@ Prepare for Makeblock's Bots
 
 3. Open the Arduino Application. (If it's already open, you will need to restart it to see changes.)
 
-4. Click "File-> Examples". Here are firmwares for Makeblock's bots in "MakeBlockDrive->Firmware_for_mBlock".
+4. Click "File-> Examples". Here are firmwares for Makeblock's bots in "MakeBlockDrive->Firmware_for_Auriga".
 
 5. Upload the Firmware to your bot.
+
+6. To get the lastest firmware, install mBlock5, download mBot extension for mBlock5 and update the firmware. At the time of writing this the latest version is  : V09.01.017
 
 Installation
 -------
@@ -47,9 +48,7 @@ Installation
 install python 2.7.x / 3.x ( http://python.org/downloads )
 
   ```
-  [sudo] pip install cython
-  [sudo] pip install pyserial
-  [sudo] pip install hidapi
+  [sudo] pip install "pyserial==3.5" "bleak==0.22.2"
   ```
 Usage
 -----------------
@@ -58,6 +57,8 @@ Usage
  ```
  Enter the folder "python-for-mbot"
  
+ Update the ble module name in the `mBLE` class 
+
  Edit lightsensor.py
  ```python
 from lib.mBot import *
@@ -67,7 +68,7 @@ def onLight(value):
 
 if __name__ == '__main__':
 	 bot = mBot()
-	 bot.startWithSerial("COM15") or bot.startWithHID()
+	 bot.startWithSerial("COM15") or bot.startWithBle()
 	 while(1):
 	   bot.requestLightOnBoard(1,onLight)
 	   sleep(0.5)
@@ -80,10 +81,10 @@ if __name__ == '__main__':
   bot.startWithSerial("COM15")
   ```
   
-  using wireless HID:
+  using wireless BLE:
   
   ```
-  bot.startWithHID()
+  bot.startWithBle()
   ```
   
   running:
@@ -93,3 +94,6 @@ if __name__ == '__main__':
   ```
   
 ### Learn more from Makeblock official website http://www.makeblock.com
+
+Code References:
+- Async to Sync: [Blinka](https://github.com/adafruit/Adafruit_Blinka_bleio/blob/a7d037244956a2d77e99250f76c11f9660d46386/_bleio/common.py#L136-L140)
