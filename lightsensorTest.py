@@ -1,7 +1,7 @@
 from lib.mBot import *
 
-def onLineFollower(value):
-	print( "status = ",value)
+def onLight(value):
+	print ("light = ",value)
 	
 if __name__ == '__main__':
 	bot = mBot()
@@ -9,9 +9,7 @@ if __name__ == '__main__':
 	bot.startWithBle()
 	while(1):
 		try:
-			port_number = 9
-			callback_id = 1
-			bot.requestLineFollower(callback_id,port_number,onLineFollower)
+			bot.requestLightOnBoard(1,onLight)
 			sleep(0.2)
 		except KeyboardInterrupt:
 			bot.exit(0,0)

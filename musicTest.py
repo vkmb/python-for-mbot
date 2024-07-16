@@ -14,7 +14,8 @@ if __name__ == '__main__':
 			for i in range(0,len(music)):
 				bot.doBuzzer(tones[music[i]],500)
 				sleep(0.5)
-		except ex:
+		except KeyboardInterrupt:
 			bot.doBuzzer(0)
-		bot.doBuzzer(0)
+			bot.exit(0,0)
+			break
 		sleep(3)
