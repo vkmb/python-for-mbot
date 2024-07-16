@@ -122,13 +122,6 @@ class mBLE():
         return self.device.is_connected
         
     def inWaiting(self):
-        buf = self.dict.device.read(64)
-        l = 0
-        if len(buf)>0:
-            l = buf[0]
-        if l>0:
-            for i in range(0,l):
-                self.buffer += [buf[i+1]]
         return len(self.buffer)
         
     def close(self):
