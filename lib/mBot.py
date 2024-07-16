@@ -51,6 +51,10 @@ class mSerial():
         return self.ser.inWaiting()
 
     def close(self):
+        
+        self.ser.reset_input_buffer()
+        self.ser.reset_output_buffer()
+        sleep(0.2)
         self.ser.close()
         
 class mHID():
@@ -154,7 +158,7 @@ class mBot():
         self.__writePackage(bytearray([0xff,0x55,0x9,0x0,0x2,0x8,port,slot,index,red,green,blue]))
 
     def doRGBLedOnBoard(self,index,red,green,blue):
-        self.doRGBLed(0x7,0x2,index,red,green,blue)
+        self.doRGBLed(0x0,0x2,index,red,green,blue)
 
     def doMotor(self,port,speed):
         self.__writePackage(bytearray([0xff,0x55,0x6,0x0,0x2,0xa,port]+self.short2bytes(speed)))
@@ -166,11 +170,13 @@ class mBot():
         self.__writePackage(bytearray([0xff,0x55,0x6,0x0,0x2,0xb,port,slot,angle]))
     
     def doBuzzer(self,buzzer,time=0):
-        self.__writePackage(bytearray([0xff,0x55,0x7,0x0,0x2,0x22]+self.short2bytes(buzzer)+self.short2bytes(time)))
+        # ff 55 08 00 02 22 2d 06 01 fa 00
+        self.__writePackage(bytearray([0xff,0x55,0x8,0x0,0x2,0x22,0x2d]+self.short2bytes(buzzer)+self.short2bytes(time)))
 
     def doSevSegDisplay(self,port,display):
         self.__writePackage(bytearray([0xff,0x55,0x8,0x0,0x2,0x9,port]+self.float2bytes(display)))
-        
+    
+    # Send IR remote singal, not tested
     def doIROnBoard(self,message):
         self.__writePackage(bytearray([0xff,0x55,len(message)+3,0x0,0x2,0xd,message]))
         
@@ -188,6 +194,18 @@ class mBot():
     def requestIROnBoard(self,extID,callback):
         self.__doCallback(extID,callback)
         self.__writePackage(bytearray([0xff,0x55,0x3,extID,0x1,0xd]))
+    
+    def requestTemperatureOnBoard(self, extID, callback):
+        self.__doCallback(extID,callback)
+        self.__writePackage(bytearray([0xff,0x55,0x4,extID,0x1,0x1b,0xd]))
+        
+    def requestSoundSenorOnBoard(self, extID, callback):
+        self.__doCallback(extID,callback)
+        self.__writePackage(bytearray([0xff,0x55,0x4,extID,0x1,0x7,0xe]))
+    
+    def requestGyroOnBoard(self, extID, axis, callback):
+        self.__doCallback(extID,callback)
+        self.__writePackage(bytearray([0xff,0x55,0x5,extID,0x1,0x6,0x1,axis]))
         
     def requestUltrasonicSensor(self,extID,port,callback):
         self.__doCallback(extID,callback)
@@ -240,7 +258,7 @@ class mBot():
         l = self.buffer[position]
         position+=1
         s = ""
-        for i in Range(l):
+        for i in range(l):
             s += self.buffer[position+i].charAt(0)
         return s
     def readDouble(self, position):
@@ -248,14 +266,14 @@ class mBot():
         return struct.unpack('<f', struct.pack('4B', *v))[0]
 
     def responseValue(self, extID, value):
-        self.__selectors["callback_"+str(extID)](value)
+        self.reponse_callback["callback_"+str(extID)](value)
         
     def __doCallback(self, extID, callback):
-        self.__selectors["callback_"+str(extID)] = callback
+        self.reponse_callback["callback_"+str(extID)] = callback
 
     def float2bytes(self,fval):
         val = struct.pack("f",fval)
-        return [ord(val[0]),ord(val[1]),ord(val[2]),ord(val[3])]
+        return [val[0],val[1],val[2],val[3]]
 
     def short2bytes(self,sval):
         val = struct.pack("h",sval)
