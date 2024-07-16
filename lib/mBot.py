@@ -1,41 +1,24 @@
-# -*- coding: utf-8 -*
+#!/usr/bin/env python3
 
+import sys
 import serial
-import sys,time
 import signal
-from time import ctime,sleep
-import glob,struct
-from multiprocessing import Process,Manager,Array
+import asyncio
 import threading
-import hid
+import glob,struct
+from time import sleep
+from bleak import BleakClient, BleakScanner
 
 class mSerial():
-    ser = None
+    # ser = None
     def __init__(self):
         sleep(0)
 
     def start(self, port):
-        self.ser = serial.Serial(port,115200)
+        self.ser = serial.Serial(port,115200,timeout=0.5)
     
     def device(self):
         return self.ser
-
-    def serialPorts(self):
-        if sys.platform.startswith('win'):
-            ports = ['COM%s' % (i + 1) for i in range(256)]
-        elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
-            ports = glob.glob('/dev/tty[A-Za-z]*')
-        elif sys.platform.startswith('darwin'):
-            ports = glob.glob('/dev/tty.*')
-        else:
-            raise EnvironmentError('Unsupported platform')
-        result = []
-        for port in ports:
-            s = serial.Serial()
-            s.port = port
-            s.close()
-            result.append(port)
-        return result
 
     def writePackage(self,package):
         self.ser.write(package)
@@ -56,38 +39,87 @@ class mSerial():
         self.ser.reset_output_buffer()
         sleep(0.2)
         self.ser.close()
-        
-class mHID():
-    def __init__(self):
-        sleep(0)
-        
-    def start(self):
-        self.manager = Manager()
-        self.dict = self.manager.dict()
-        self.dict.device = hid.device()
-        self.dict.device.open(0x0416, 0xffff)
-        #self.dict.device.hid_set_nonblocking(self.device,1)
+        sleep(0.2)
+
+
+found_advert = None
+def find_mBot_ble_v1_c(bleDevice, advert):
+    global found_advert
+    # print("Filtering", bleDevice)
+    if advert.local_name is None:
+        return False
+
+    if not advert.local_name.startswith("Makeblock_LE"):
+        return False
+
+    found_advert = advert
+    return True
+
+async def connectBle(devName):
+    if devName is None:
+        bleDev = await BleakScanner.find_device_by_filter(filterfunc=find_mBot_ble_v1_c)
+    else:
+        bleDev = await BleakScanner.find_device_by_name()
+        if bleDev is None:
+            print("mBot not found")
+            return
+    periperal = BleakClient(bleDev)
+    await periperal.connect()
+    if not periperal.is_connected:
+        return None
+    return periperal
+
+class mBLE():
+    useExistingService = False
+    def __init__(self, bleName=None):
+        self.bleName = bleName
+        self.service = "0000ffe1-0000-1000-8000-00805f9b34fb"
+        self.writeChar = "0000ffe3-0000-1000-8000-00805f9b34fb"
+        self.readChar = "0000ffe2-0000-1000-8000-00805f9b34fb"
+        self._bleak_thread = threading.Thread(target=self._run_bleak_loop)
+        # Discard thread quietly on exit.
+        self._bleak_thread.daemon = True
         self.buffer = []
-        self.bufferIndex = 0
+        self._bleak_thread_ready = threading.Event()
+        self._bleak_thread.start()
+        # Wait for thread to start.
+        self._bleak_thread_ready.wait()
     
-    def enumerate(self):
-        sleep(0)
+    def _run_bleak_loop(self):
+        self._bleak_loop = asyncio.new_event_loop()
+        # Event loop is now available.
+        self._bleak_thread_ready.set()
+        self._bleak_loop.run_forever()
+
+    def await_bleak(self, coro, timeout=None):
+        """Call an async routine in the bleak thread from sync code, and await its result."""
+        # This is a concurrent.Future.
+        future = asyncio.run_coroutine_threadsafe(coro, self._bleak_loop)
+        return future.result(timeout)
+
+    def start(self):
+        self.device = self.await_bleak(connectBle(self.bleName))
+        # update bleName
+        if self.device is None:
+            print("Failed to connect")
+            return None
+        self.bleName = found_advert.local_name
+        self.await_bleak(self.device.start_notify(self.readChar, self.handleRecv))
+
+    def handleRecv(self, _, data):
+        self.buffer = data
 
     def writePackage(self,package):
-        buf = []
-        buf += [0, len(package)]
-        for i in range(len(package)):
-            buf += [package[i]]
-        n = self.dict.device.write(buf)
+        self.await_bleak(self.device.write_gatt_char(self.writeChar, package, response=False))
         sleep(0.01)
 
     def read(self):
         c = self.buffer[0]
         self.buffer = self.buffer[1:]
-        return unichr(c)
+        return chr(c)
         
     def isOpen(self):
-        return True
+        return self.device.is_connected
         
     def inWaiting(self):
         buf = self.dict.device.read(64)
@@ -100,26 +132,36 @@ class mHID():
         return len(self.buffer)
         
     def close(self):
-        self.dict.device.close()
-        
+        try:
+            if self.device is None:
+                print("Already disconnect")
+                return None
+            self.await_bleak(self.device.disconnect(), .5)
+            self._bleak_loop.stop()
+            self._bleak_thread.join(timeout=.5)
+        except TimeoutError:
+            exit()
+        return
+        # self._bleak_loop.close()
+
+
 class mBot():
     def __init__(self):
-        signal.signal(signal.SIGINT, self.exit)
-        self.manager = Manager()
-        self.__selectors = self.manager.dict()
+        self.reponse_callback = {}
         self.buffer = []
         self.bufferIndex = 0
         self.isParseStart = False
         self.exiting = False
         self.isParseStartIndex = 0
+        self.async_read = None
         
     def startWithSerial(self, port):
         self.device = mSerial()
         self.device.start(port)
         self.start()
     
-    def startWithHID(self):
-        self.device = mHID()
+    def startWithBle(self):
+        self.device = mBLE()
         self.device.start()
         self.start()
     
@@ -128,15 +170,17 @@ class mBot():
         
     def start(self):
         sys.excepthook = self.excepthook
-        th = threading.Thread(target=self.__onRead,args=(self.onParse,))
-        th.start()
+        self.async_read = threading.Thread(target=self.__onRead,args=(self.onParse,))
+        self.async_read.start()
         
     def close(self):
+        self.async_read.join(.5)
         self.device.close()
         
     def exit(self, signal, frame):
         self.exiting = True
-        sys.exit(0)
+        self.close()
+        # sys.exit(0)
         
     def __onRead(self,callback):
         while 1:
@@ -145,8 +189,11 @@ class mBot():
             if self.device.isOpen():
                 n = self.device.inWaiting()
                 for i in range(n):
-                    r = ord(self.device.read())
-                    callback(r)
+                    try:
+                        r = ord(self.device.read())
+                        callback(r)
+                    except:
+                        pass
                 sleep(0.01)
             else:    
                 sleep(0.5)
@@ -277,4 +324,4 @@ class mBot():
 
     def short2bytes(self,sval):
         val = struct.pack("h",sval)
-        return [ord(val[0]),ord(val[1])]
+        return [val[0], val[1]]
