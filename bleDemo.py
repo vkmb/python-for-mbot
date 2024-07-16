@@ -1,0 +1,53 @@
+from lib.mBot import mBot
+from time import sleep
+from functools import partial
+
+def reportValue(sensor, value):
+    print(sensor, ":" ,value)
+
+# Callbacks
+ultraReport = partial(reportValue, "Ultrasonic")
+lineReport = partial(reportValue, "LineFollower")
+buttonReport = partial(reportValue, "Button")
+lightReport = partial(reportValue, "Light")
+tempReport = partial(reportValue, "Temperature")
+soundReport = partial(reportValue, "Sound")
+xReport = partial(reportValue, "x")
+yReport = partial(reportValue, "y")
+zReport = partial(reportValue, "z")
+
+bot = mBot()
+
+bot.startWithBle()
+bot.doBuzzer(50, 200)
+sleep(1)
+bot.doRGBLedOnBoard(0, 10, 10, 10)
+sleep(1)
+bot.doRGBLedOnBoard(0, 0, 0, 0)
+sleep(1)
+bot.doMove(100, -100)
+sleep(2)
+bot.doMove(-100, 100)
+sleep(2)
+bot.doMove(0, 0)
+sleep(2)
+bot.requestUltrasonicSensor(1, 10, ultraReport)
+sleep(1)
+bot.requestLineFollower(2, 9, lineReport)
+sleep(1)
+bot.requestButtonOnBoard(3, buttonReport)
+sleep(1)
+bot.requestLightOnBoard(4, lightReport)
+sleep(1)
+bot.requestTemperatureOnBoard(5, tempReport)
+sleep(1)
+bot.requestSoundSenorOnBoard(6, soundReport)
+sleep(1)
+bot.requestGyroOnBoard(7, 1, xReport)
+sleep(1)
+bot.requestGyroOnBoard(8, 2, yReport)
+sleep(1)
+bot.requestGyroOnBoard(9, 3, zReport)
+sleep(1)
+print("Exiting")
+bot.exit(0,0)
