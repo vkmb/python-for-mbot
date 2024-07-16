@@ -45,7 +45,7 @@ Prepare for Makeblock's mBot Ranger(Me Auriga)
 Installation
 -------
 
-install python 2.7.x / 3.x ( http://python.org/downloads )
+install python >= 3.8 ( http://python.org/downloads )
 
   ```
   [sudo] pip install "pyserial==3.5" "bleak==0.22.2"
